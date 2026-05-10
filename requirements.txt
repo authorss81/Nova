@@ -1,0 +1,2 @@
+# Core dependencies (to be added as needed)
+# No external dependencies for v0.0.0.1
