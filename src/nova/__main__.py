@@ -9,7 +9,7 @@ import sys
 import argparse
 from pathlib import Path
 
-__version__ = "0.0.0.1"
+__version__ = "0.0.0.2"
 __author__ = "Nova Language Team"
 __license__ = "MIT"
 

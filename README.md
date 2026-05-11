@@ -1,7 +1,7 @@
 # Nova Programming Language
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.0.0.1-orange" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.0.0.2-orange" alt="Version">
   <img src="https://img.shields.io/badge/Phase-Python%20Prototype-blue" alt="Phase">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
   <a href="https://github.com/authorss81/Nova"><img src="https://img.shields.io/badge/GitHub-Nova-success" alt="GitHub"></a>
@@ -86,7 +86,7 @@ Nova follows **Phase-based versioning**:
 | `0.x.x.x` | Python implementation (design, prototype, spec) |
 | `1.x.x.x` | Rust rewrite (performance, WASM, production) |
 
-Current: **v0.0.0.1** (Project Skeleton)
+Current: **v0.0.0.2** (Source File Handling)
 
 ## Project Structure
 
@@ -127,7 +127,6 @@ Phase 1 covers Rust rewrite starting at v1.0.0.0.
 |-----------|--------|
 | 0.0 - Project Foundation & Lexer | In Progress |
 | 0.1 - Parser & AST | Pending |
-| 0.2 - Core Interpreter | Pending |
 | ... | ... |
 | 0.19 - Spec Freeze | Pending |
 | 1.0 - Rust Rewrite | Pending |
