@@ -6,12 +6,12 @@ Character-by-character scanner with lookahead for tokenizing Nova source code.
 
 from typing import Optional
 from nova.lexer.source import SourceFile
-from nova.lexer.tokens import Token, TokenType
+from nova.lexer.tokens import Token, TokenType, is_keyword
 from nova.errors import LexerError
 
 
 class Lexer:
-    """Tokenizes Nova source code."""
+    """Tokenizes Nova source code with full position tracking."""
     
     def __init__(self, source: SourceFile):
         self.source = source
@@ -24,6 +24,11 @@ class Lexer:
         self.start_col = 1
         self.tokens: list[Token] = []
         self.current_char: Optional[str] = self._peek(0)
+        self.errors: list[LexerError] = []
+        self._token_cache: dict[int, list[Token]] = {}
+        self._checkpoint_pos = 0
+        self._checkpoint_line = 1
+        self._checkpoint_col = 1
     
     def _peek(self, offset: int = 0) -> Optional[str]:
         idx = self.pos + offset
@@ -43,18 +48,23 @@ class Lexer:
         return ch
     
     def _match(self, expected: str) -> bool:
-        if self._peek() == expected:
+        for i, ch in enumerate(expected):
+            if self._peek(i) != ch:
+                return False
+        for _ in expected:
             self._advance()
-            return True
-        return False
+        return True
     
     def _skip_whitespace(self) -> bool:
         ch = self._peek()
         if ch is None or ch == '\n':
             return False
-        
+
         if ch in ' \t\r':
-            while self._peek() in ' \t\r':
+            while True:
+                next_ch = self._peek()
+                if next_ch is None or next_ch not in ' \t\r':
+                    break
                 self._advance()
             return True
         return False
@@ -86,7 +96,8 @@ class Lexer:
         has_decimal = False
         has_exponent = False
         
-        if self._peek() == '0' and self._peek(1) in 'xXoObB':
+        peek1 = self._peek(1)
+        if self._peek() == '0' and peek1 is not None and peek1 in 'xXoObB':
             result.append(self._advance())
             prefix = self._peek().lower()
             result.append(self._advance())
@@ -109,10 +120,12 @@ class Lexer:
                 else:
                     self._advance()
         
-        if self._peek() in 'eE':
+        ch = self._peek()
+        if ch is not None and ch in 'eE':
             has_exponent = True
             result.append(self._advance())
-            if self._peek() in '+-':
+            ch = self._peek()
+            if ch is not None and ch in '+-':
                 result.append(self._advance())
             while self._peek() and (self._peek().isdigit() or self._peek() == '_'):
                 if self._peek() != '_':
@@ -173,6 +186,9 @@ class Lexer:
         if ch.isdigit():
             return self._scan_number()
         
+        if ch in '"\'':
+            return self._scan_string()
+        
         return self._scan_operator_or_delimiter()
     
     def _save_start(self):
@@ -194,10 +210,15 @@ class Lexer:
     def _scan_identifier_or_keyword(self) -> Token:
         identifier = self._read_identifier()
         type = TokenType.IDENTIFIER
-        if TokenType.is_keyword(identifier):
+        if is_keyword(identifier):
             type = TokenType.KEYWORD
         return self._make_token(type, identifier)
     
+    def _scan_string(self) -> Token:
+        quote = self._peek()
+        string = self._read_string(quote)
+        return self._make_token(TokenType.STRING, string)
+
     def _scan_number(self) -> Token:
         num = self._read_number()
         type = TokenType.INTEGER
@@ -206,20 +227,17 @@ class Lexer:
         return self._make_token(type, num)
     
     def _scan_operator_or_delimiter(self) -> Token:
-        ch = self._peek()
-        
+        if self._match('...'):
+            return self._make_token(TokenType.DOT_DOT_DOT, '...')
+        if self._match('..='):
+            return self._make_token(TokenType.DOT_DOT_EQ, '..=')
         if self._match('..'):
-            if self._match('='):
-                return self._make_token(TokenType.DOT_DOT_EQ, '..=')
             return self._make_token(TokenType.DOT_DOT, '..')
-        
+
         if self._match('=='):
             return self._make_token(TokenType.EQ_EQ, '==')
         if self._match('!='):
-            if self._match('='):
-                return self._make_token(TokenType.BANG_EQ, '!=')
-            return self._make_token(TokenType.BANG, '!')
-        
+            return self._make_token(TokenType.BANG_EQ, '!=')
         if self._match('<='):
             return self._make_token(TokenType.LT_EQ, '<=')
         if self._match('>='):
@@ -228,53 +246,50 @@ class Lexer:
             return self._make_token(TokenType.LT_LT, '<<')
         if self._match('>>'):
             return self._make_token(TokenType.GT_GT, '>>')
-        
+
+        if self._match('&&='):
+            return self._make_token(TokenType.AMPER_AMPER, '&&=')
         if self._match('&&'):
-            if self._match('='):
-                return self._make_token(TokenType.AMPER_AMPER, '&&=')
             return self._make_token(TokenType.AMPER_AMPER, '&&')
+        if self._match('||='):
+            return self._make_token(TokenType.PIPE_PIPE, '||=')
         if self._match('||'):
-            if self._match('='):
-                return self._make_token(TokenType.PIPE_PIPE, '||=')
             return self._make_token(TokenType.PIPE_PIPE, '||')
-        
+
+        if self._match('??='):
+            return self._make_token(TokenType.QUESTION_QUESTION_EQ, '??=')
         if self._match('??'):
-            if self._match('='):
-                return self._make_token(TokenType.QUESTION_QUESTION_EQ, '??=')
             return self._make_token(TokenType.QUESTION_QUESTION, '??')
-        
         if self._match('?.'):
             return self._make_token(TokenType.QUESTION_DOT, '?.')
-        
+
         if self._match('->'):
             return self._make_token(TokenType.ARROW, '->')
         if self._match('=>'):
             return self._make_token(TokenType.FAT_ARROW, '=>')
-        
-        if self._match('+='):
-            return self._make_token(TokenType.PLUS_EQ, '+=')
-        if self._match('-='):
-            return self._make_token(TokenType.MINUS_EQ, '-=')
+
+        if self._match('**='):
+            return self._make_token(TokenType.STAR_STAR_EQ, '**=')
+        if self._match('**'):
+            return self._make_token(TokenType.STAR_STAR, '**')
         if self._match('*='):
-            if self._match('*'):
-                if self._match('='):
-                    return self._make_token(TokenType.STAR_STAR_EQ, '**=')
-                return self._make_token(TokenType.STAR_STAR, '**')
             return self._make_token(TokenType.STAR_EQ, '*=')
         if self._match('/='):
             return self._make_token(TokenType.SLASH_EQ, '/=')
         if self._match('%='):
             return self._make_token(TokenType.PERCENT_EQ, '%=')
+        if self._match('+='):
+            return self._make_token(TokenType.PLUS_EQ, '+=')
+        if self._match('-='):
+            return self._make_token(TokenType.MINUS_EQ, '-=')
         if self._match('&='):
             return self._make_token(TokenType.AMPER_EQ, '&=')
         if self._match('|='):
             return self._make_token(TokenType.PIPE_EQ, '|=')
         if self._match('^='):
             return self._make_token(TokenType.CARET_EQ, '^=')
-        
-        if self._match('...'):
-            return self._make_token(TokenType.DOT_DOT_DOT, '...')
-        
+
+        ch = self._peek()
         single_char_tokens = {
             '+': TokenType.PLUS,
             '-': TokenType.MINUS,
@@ -300,12 +315,13 @@ class Lexer:
             '{': TokenType.LBRACE,
             '}': TokenType.RBRACE,
             '@': TokenType.AT,
+            '!': TokenType.BANG,
         }
-        
+
         if ch in single_char_tokens:
             self._advance()
             return self._make_token(single_char_tokens[ch], ch)
-        
+
         self._advance()
         return self._make_token(TokenType.ILLEGAL, ch)
     
@@ -324,5 +340,107 @@ class Lexer:
     
     def tokenize_interactive(self) -> Token:
         """Tokenize a single token for interactive mode."""
-        token = self._scan_token()
-        return token if token else Token(TokenType.EOF, '', self.line, self.col)
+        while True:
+            token = self._scan_token()
+            if token is not None:
+                return token
+
+    def checkpoint(self) -> tuple[int, int, int]:
+        """Save lexer state for potential backtracking."""
+        self._checkpoint_pos = self.pos
+        self._checkpoint_line = self.line
+        self._checkpoint_col = self.col
+        return (self._checkpoint_pos, self._checkpoint_line, self._checkpoint_col)
+    
+    def restore(self, checkpoint: tuple[int, int, int]) -> None:
+        """Restore lexer state from checkpoint."""
+        self.pos, self.line, self.col = checkpoint
+        self.current_char = self._peek()
+    
+    def get_source_span(self) -> tuple[int, int]:
+        """Get current token source span as (start, end) offsets."""
+        return (self.start_pos, self.pos)
+    
+    def get_source_position(self) -> tuple[int, int, int]:
+        """Get current position as (offset, line, col)."""
+        return (self.pos, self.line, self.col)
+    
+    def peek_token(self, offset: int = 0) -> Optional[Token]:
+        """Look ahead at a future token without consuming it."""
+        saved_pos = self.pos
+        saved_line = self.line
+        saved_col = self.col
+        saved_start_pos = self.start_pos
+        saved_start_line = self.start_line
+        saved_start_col = self.start_col
+        saved_current = self.current_char
+
+        temp_tokens = []
+        while len(temp_tokens) <= offset:
+            token = self._scan_token()
+            if token is None:
+                continue
+            temp_tokens.append(token)
+            if token.type == TokenType.EOF:
+                break
+
+        result = temp_tokens[-1] if temp_tokens else None
+
+        self.pos = saved_pos
+        self.line = saved_line
+        self.col = saved_col
+        self.start_pos = saved_start_pos
+        self.start_line = saved_start_line
+        self.start_col = saved_start_col
+        self.current_char = saved_current
+
+        return result
+    
+    def reset(self) -> None:
+        """Reset the lexer to the beginning."""
+        self.pos = 0
+        self.line = 1
+        self.col = 1
+        self.start_pos = 0
+        self.start_line = 1
+        self.start_col = 1
+        self.current_char = self._peek(0) if self.content else None
+        self.tokens = []
+        self.errors = []
+    
+    @property
+    def is_at_end(self) -> bool:
+        """Check if lexer has consumed all input."""
+        return self.pos >= len(self.content)
+    
+    @property
+    def current_offset(self) -> int:
+        """Get current offset in source."""
+        return self.pos
+    
+    @property
+    def remaining(self) -> str:
+        """Get remaining unparsed content."""
+        return self.content[self.pos:]
+    
+    def add_error(self, message: str, hint: str = "") -> None:
+        """Record a non-fatal lexer error."""
+        error = LexerError(
+            message=message,
+            line=self.line,
+            col=self.col,
+            filename=self.source.filename,
+            hint=hint
+        )
+        self.errors.append(error)
+    
+    def get_errors(self) -> list[LexerError]:
+        """Get all recorded lexer errors."""
+        return self.errors.copy()
+    
+    def has_errors(self) -> bool:
+        """Check if any errors were recorded."""
+        return len(self.errors) > 0
+    
+    def __repr__(self) -> str:
+        return f"<Lexer at {self.line}:{self.col} pos={self.pos}/{len(self.content)}>"

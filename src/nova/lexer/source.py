@@ -209,17 +209,17 @@ class SourceFile:
         except UnicodeDecodeError:
             return 'latin-1'
     
-    def __post_init__(self, lines=None, _line_offsets=None, _dirty=False, _encoding=None, _hash=None):
-        if lines is None:
-            self._compute_lines()
-        if _line_offsets is None:
-            self._line_offsets = self._compute_line_offsets()
-        if _hash is None and self.content:
+    def __post_init__(self):
+        self._compute_lines()
+        self._line_offsets = self._compute_line_offsets()
+        if self.content:
             self._hash = self._compute_hash()
     
     def _compute_lines(self) -> None:
         """Compute line information from content."""
         self.lines = []
+        if not self.content:
+            return
         offset = 0
         for i, line_text in enumerate(self.content.split('\n'), start=1):
             line = SourceLine(

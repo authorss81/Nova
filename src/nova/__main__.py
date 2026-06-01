@@ -9,79 +9,11 @@ import sys
 import argparse
 from pathlib import Path
 
-__version__ = "0.0.0.2"
+from nova.errors import NovaError, LexerError, ParserError, TypeError, RuntimeError, NovaExit
+
+__version__ = "0.0.0.3"
 __author__ = "Nova Language Team"
 __license__ = "MIT"
-
-
-class NovaError(Exception):
-    """Base exception for all Nova errors."""
-    
-    def __init__(
-        self,
-        message: str,
-        line: int = 0,
-        col: int = 0,
-        filename: str = "",
-        hint: str = ""
-    ):
-        self.message = message
-        self.line = line
-        self.col = col
-        self.filename = filename
-        self.hint = hint
-        super().__init__(self._format_message())
-    
-    def _format_message(self) -> str:
-        location = ""
-        if self.filename:
-            location += f" in '{self.filename}'"
-        if self.line > 0:
-            location += f" at line {self.line}"
-            if self.col > 0:
-                location += f", column {self.col}"
-        
-        msg = f"NovaError{location}: {self.message}"
-        if self.hint:
-            msg += f"\n  Hint: {self.hint}"
-        return msg
-    
-    def to_dict(self) -> dict:
-        return {
-            "error": "NovaError",
-            "message": self.message,
-            "line": self.line,
-            "column": self.col,
-            "filename": self.filename,
-            "hint": self.hint
-        }
-
-
-class LexerError(NovaError):
-    """Error raised during lexical analysis."""
-    pass
-
-
-class ParserError(NovaError):
-    """Error raised during parsing."""
-    pass
-
-
-class TypeError(NovaError):
-    """Error raised during type checking."""
-    pass
-
-
-class RuntimeError(NovaError):
-    """Error raised during execution."""
-    pass
-
-
-class NovaExit(Exception):
-    """Exception for graceful CLI exit."""
-    def __init__(self, code: int = 0):
-        self.code = code
-        super().__init__()
 
 
 def get_version() -> str:

@@ -93,27 +93,28 @@ class TokenType(Enum):
     
     ERROR = auto()
     ILLEGAL = auto()
-    
-    KEYWORDS = {
-        "let", "const", "fn", "return", "if", "else", "for", "while",
-        "in", "break", "continue", "true", "false", "null", "import",
-        "export", "from", "class", "extends", "new", "this", "super",
-        "static", "async", "await", "try", "catch", "finally", "throw",
-        "match", "case", "type", "interface", "enum", "as", "is", "of",
-        "yield", "page", "component", "style", "route", "ai", "not",
-        "and", "or", "where", "on", "send", "find", "show", "give", "with",
-        "loop", "pub", "priv", "mut", "ref", "static", "abstract",
-        "virtual", "override", "sealed", "partial", "async", "await",
-        "yield", "match", "case", "if", "else", "elif", "unless", "when",
-        "and", "or", "not", "in", "as", "is", "of", "for", "while", "loop",
-        "switch", "default", "defer", "scope", "using", "try", "catch",
-        "finally", "throw", "raises", "assert", "debugger", "todo", "fixme",
-        "XXX", "TBD", "note", "hack"
-    }
-    
-    @classmethod
-    def is_keyword(cls, text: str) -> bool:
-        return text in cls.KEYWORDS
+
+
+KEYWORDS = {
+    "let", "const", "fn", "return", "if", "else", "for", "while",
+    "in", "break", "continue", "true", "false", "null", "import",
+    "export", "from", "class", "extends", "new", "this", "super",
+    "static", "async", "await", "try", "catch", "finally", "throw",
+    "match", "case", "type", "interface", "enum", "as", "is", "of",
+    "yield", "page", "component", "style", "route", "ai", "not",
+    "and", "or", "where", "on", "send", "find", "show", "give", "with",
+    "loop", "pub", "priv", "mut", "ref", "static", "abstract",
+    "virtual", "override", "sealed", "partial", "async", "await",
+    "yield", "match", "case", "if", "else", "elif", "unless", "when",
+    "and", "or", "not", "in", "as", "is", "of", "for", "while", "loop",
+    "switch", "default", "defer", "scope", "using", "try", "catch",
+    "finally", "throw", "raises", "assert", "debugger", "todo", "fixme",
+    "XXX", "TBD", "note", "hack"
+}
+
+
+def is_keyword(text: str) -> bool:
+    return text in KEYWORDS
 
 
 class Token:
@@ -159,7 +160,7 @@ class Token:
         return hash((self.type, self.value))
     
     def is_keyword(self) -> bool:
-        return self.type == TokenType.IDENTIFIER and TokenType.is_keyword(self.value)
+        return self.type == TokenType.IDENTIFIER and is_keyword(self.value)
     
     def is_operator(self) -> bool:
         return self.type in {
