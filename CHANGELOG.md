@@ -4,6 +4,18 @@ A world-class, web-development focused programming language with built-in AI cap
 
 ## Version
 
+**v0.0.0.6** — Tokenizer: String Literals
+
+- Raw strings: `r"..."` and `r'...'` (no escape processing) → `RAW_STRING` token
+- Escape sequence validation: `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `\0`, `\uXXXX` — invalid escapes emit errors
+- Template strings: backtick `` ` `` with `{expr}` interpolation → `TEMPLATE_START`, `TEMPLATE_MID`, `TEMPLATE_END` tokens
+- Template expressions scanned inline (operators, identifiers, numbers, strings)
+- Escape sequences in templates: `\\`, `\``, `\{` etc. prevent expression/terminator interpretation
+- Error recovery: invalid escape sequences recorded as non-fatal errors, scanning continues
+- Added `_validate_escape()`, `_read_raw_string()`, `_scan_raw_string()`, `_scan_template()` methods
+- Added `_template_queue` for multi-token template return
+- 256 unit tests — all passing
+
 **v0.0.0.5** — Tokenizer: Literals
 
 - `true`/`false`/`null` now tokenize as `TRUE`/`FALSE`/`NULL` (not `KEYWORD`)

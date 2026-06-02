@@ -1148,3 +1148,229 @@ class TestLexerLiterals:
         assert tok.line == 1
         assert tok.col == 3
         assert tok.type == TokenType.TRUE
+
+
+class TestLexerRawStrings:
+    def test_raw_string_double(self):
+        toks = tokenize('r"hello"')
+        assert types(toks) == [TokenType.RAW_STRING]
+        assert toks[0].value == '"hello"'
+
+    def test_raw_string_single(self):
+        toks = tokenize("r'hello'")
+        assert types(toks) == [TokenType.RAW_STRING]
+        assert toks[0].value == "'hello'"
+
+    def test_raw_string_with_backslash(self):
+        toks = tokenize(r'r"\n\t"')
+        assert types(toks) == [TokenType.RAW_STRING]
+        assert toks[0].value == r'"\n\t"'
+
+    def test_raw_string_with_quote_inside(self):
+        toks = tokenize('r"it\'s ok"')
+        assert types(toks) == [TokenType.RAW_STRING]
+        assert toks[0].value == "\"it's ok\""
+
+    def test_raw_string_empty(self):
+        toks = tokenize('r""')
+        assert types(toks) == [TokenType.RAW_STRING]
+        assert toks[0].value == '""'
+
+    def test_identifier_r_not_raw_string(self):
+        toks = tokenize("run")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "run"
+
+    def test_identifier_r_followed_by_string(self):
+        toks = tokenize('r "hello"')
+        assert types(toks) == [TokenType.IDENTIFIER, TokenType.STRING]
+        assert toks[0].value == "r"
+        assert toks[1].value == '"hello"'
+
+    def test_raw_string_unterminated(self):
+        lexer = make_lexer('r"unterminated')
+        with pytest.raises(LexerError, match="Unterminated raw string"):
+            lexer.tokenize()
+
+    def test_raw_string_newline(self):
+        lexer = make_lexer('r"hello\nworld"')
+        with pytest.raises(LexerError, match="Unterminated raw string"):
+            lexer.tokenize()
+
+    def test_raw_string_positions(self):
+        lexer = make_lexer("  r'hello'")
+        toks = lexer.tokenize()
+        raw = toks[0]
+        assert raw.line == 1
+        assert raw.col == 3
+        assert raw.type == TokenType.RAW_STRING
+
+
+class TestLexerEscapeSequences:
+    def test_valid_escape_newline(self):
+        toks = tokenize(r'"\n"')
+        assert toks[0].value == r'"\n"'
+
+    def test_valid_escape_tab(self):
+        toks = tokenize(r'"\t"')
+        assert toks[0].value == r'"\t"'
+
+    def test_valid_escape_carriage_return(self):
+        toks = tokenize(r'"\r"')
+        assert toks[0].value == r'"\r"'
+
+    def test_valid_escape_backslash(self):
+        toks = tokenize(r'"\\"')
+        assert toks[0].value == r'"\\"'
+
+    def test_valid_escape_double_quote(self):
+        toks = tokenize(r'"\""')
+        assert toks[0].value == r'"\""'
+
+    def test_valid_escape_single_quote(self):
+        toks = tokenize(r"'\''")
+        assert toks[0].value == r"'\''"
+
+    def test_valid_escape_null(self):
+        toks = tokenize(r'"\0"')
+        assert toks[0].value == r'"\0"'
+
+    def test_valid_escape_unicode(self):
+        toks = tokenize(r'"\u0041"')
+        assert toks[0].value == r'"\u0041"'
+
+    def test_invalid_escape_adds_error(self):
+        lexer = make_lexer(r'"\q"')
+        lexer.tokenize()
+        assert lexer.has_errors() is True
+        errs = lexer.get_errors()
+        assert any("Invalid escape" in e.message for e in errs)
+
+    def test_invalid_escape_unicode_short(self):
+        lexer = make_lexer(r'"\uFFF"')
+        lexer.tokenize()
+        assert lexer.has_errors() is True
+
+    def test_invalid_escape_unicode_wrong(self):
+        lexer = make_lexer(r'"\uXYZ1"')
+        lexer.tokenize()
+        assert lexer.has_errors() is True
+
+    def test_multiple_errors_in_string(self):
+        lexer = make_lexer(r'"\q\x"')
+        lexer.tokenize()
+        errs = lexer.get_errors()
+        assert len(errs) == 2
+
+    def test_no_error_for_valid_escapes(self):
+        lexer = make_lexer(r'"\n\t\r\\\"\'"')
+        lexer.tokenize()
+        assert lexer.has_errors() is False
+
+
+class TestLexerTemplates:
+    def test_empty_template(self):
+        toks = tokenize("``")
+        assert types(toks) == [TokenType.TEMPLATE_END]
+        assert toks[0].value == ""
+
+    def test_template_no_expressions(self):
+        toks = tokenize("`hello`")
+        assert types(toks) == [TokenType.TEMPLATE_END]
+        assert toks[0].value == "hello"
+
+    def test_template_with_expression(self):
+        toks = tokenize("`x{name}y`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type != TokenType.EOF]
+        expected = [
+            (TokenType.TEMPLATE_START, "x"),
+            (TokenType.IDENTIFIER, "name"),
+            (TokenType.TEMPLATE_END, "y"),
+        ]
+        assert types_and_values == expected
+
+    def test_template_start_only(self):
+        toks = tokenize("`{name}`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type != TokenType.EOF]
+        expected = [
+            (TokenType.TEMPLATE_START, ""),
+            (TokenType.IDENTIFIER, "name"),
+            (TokenType.TEMPLATE_END, ""),
+        ]
+        assert types_and_values == expected
+
+    def test_template_with_escape(self):
+        toks = tokenize(r"`hello\nworld`")
+        assert types(toks) == [TokenType.TEMPLATE_END]
+        assert toks[0].value == r"hello\nworld"
+
+    def test_template_with_escape_and_expr(self):
+        toks = tokenize(r"`a\{name}b`")
+        assert types(toks) == [TokenType.TEMPLATE_END]
+        assert toks[0].value == r"a\{name}b"
+
+    def test_template_multiple_expressions(self):
+        toks = tokenize("`{a}{b}{c}`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type != TokenType.EOF]
+        expected = [
+            (TokenType.TEMPLATE_START, ""),
+            (TokenType.IDENTIFIER, "a"),
+            (TokenType.TEMPLATE_MID, ""),
+            (TokenType.IDENTIFIER, "b"),
+            (TokenType.TEMPLATE_MID, ""),
+            (TokenType.IDENTIFIER, "c"),
+            (TokenType.TEMPLATE_END, ""),
+        ]
+        assert types_and_values == expected
+
+    def test_template_with_expression_with_ops(self):
+        toks = tokenize("`{1 + 2}`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type != TokenType.EOF]
+        expected = [
+            (TokenType.TEMPLATE_START, ""),
+            (TokenType.INTEGER, "1"),
+            (TokenType.PLUS, "+"),
+            (TokenType.INTEGER, "2"),
+            (TokenType.TEMPLATE_END, ""),
+        ]
+        assert types_and_values == expected
+
+    def test_template_complex(self):
+        toks = tokenize("`Hello {name}, you are {age} years old`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type not in (TokenType.EOF,)]
+        expected = [
+            (TokenType.TEMPLATE_START, "Hello "),
+            (TokenType.IDENTIFIER, "name"),
+            (TokenType.TEMPLATE_MID, ", you are "),
+            (TokenType.IDENTIFIER, "age"),
+            (TokenType.TEMPLATE_END, " years old"),
+        ]
+        assert types_and_values == expected
+
+    def test_template_escape_backtick(self):
+        toks = tokenize(r"`hello\`world`")
+        assert types(toks) == [TokenType.TEMPLATE_END]
+        assert toks[0].value == r"hello\`world"
+
+    def test_template_empty_expression(self):
+        toks = tokenize("`{}`")
+        types_and_values = [(t.type, t.value) for t in toks if t.type != TokenType.EOF]
+        expected = [
+            (TokenType.TEMPLATE_START, ""),
+            (TokenType.TEMPLATE_END, ""),
+        ]
+        assert types_and_values == expected
+
+    def test_template_positions(self):
+        lexer = make_lexer("  `hello`")
+        toks = lexer.tokenize()
+        assert toks[0].line == 1
+        assert toks[0].col == 3
+
+    def test_template_expression_positions(self):
+        lexer = make_lexer("`{a b}`")
+        toks = lexer.tokenize()
+        expr_tokens = [t for t in toks if t.type == TokenType.IDENTIFIER]
+        assert len(expr_tokens) == 2
+        assert expr_tokens[0].value == "a"
+        assert expr_tokens[1].value == "b"

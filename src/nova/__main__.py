@@ -11,7 +11,7 @@ from pathlib import Path
 
 from nova.errors import NovaError, LexerError, ParserError, TypeError, RuntimeError, NovaExit
 
-__version__ = "0.0.0.5"
+__version__ = "0.0.0.6"
 __author__ = "Nova Language Team"
 __license__ = "MIT"
 

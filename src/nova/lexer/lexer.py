@@ -29,6 +29,7 @@ class Lexer:
         self._checkpoint_pos = 0
         self._checkpoint_line = 1
         self._checkpoint_col = 1
+        self._template_queue: list[Token] = []
     
     def _peek(self, offset: int = 0) -> Optional[str]:
         idx = self.pos + offset
@@ -142,6 +143,8 @@ class Lexer:
             if ch == '\\':
                 result.append(self._advance())
                 if self._peek():
+                    esc = self._peek()
+                    self._validate_escape(esc)
                     result.append(self._advance())
             elif ch == '\n':
                 raise LexerError(
@@ -162,7 +165,33 @@ class Lexer:
         result.append(self._advance())
         return ''.join(result)
     
+    def _validate_escape(self, esc: str) -> None:
+        if esc in 'ntr\\"\'0':
+            return
+        if esc == 'u':
+            hex_digits = []
+            for i in range(4):
+                ch = self._peek(i)
+                if ch and ch.isalnum() and ch.lower() in '0123456789abcdef':
+                    hex_digits.append(ch)
+                else:
+                    break
+            if len(hex_digits) == 4:
+                return
+            self.add_error(
+                "Invalid Unicode escape sequence",
+                hint="Expected \\u followed by exactly 4 hex digits"
+            )
+            return
+        self.add_error(
+            f"Invalid escape sequence: \\{esc}",
+            hint="Valid escapes: \\n, \\t, \\r, \\\\, \\\", \\', \\0, \\uXXXX"
+        )
+    
     def _scan_token(self) -> Optional[Token]:
+        if self._template_queue:
+            return self._template_queue.pop(0)
+        
         self._save_start()
         
         if self._skip_comment():
@@ -179,6 +208,12 @@ class Lexer:
             return self._make_token(TokenType.EOF, '')
         
         ch = self._peek()
+        
+        if ch == 'r' and self._peek(1) in '"\'':
+            return self._scan_raw_string()
+        
+        if ch == '`':
+            return self._scan_template()
         
         if ch.isalpha() or ch in '_$':
             return self._scan_identifier_or_keyword()
@@ -220,6 +255,79 @@ class Lexer:
         quote = self._peek()
         string = self._read_string(quote)
         return self._make_token(TokenType.STRING, string)
+
+    def _scan_raw_string(self) -> Token:
+        self._advance()
+        quote = self._peek()
+        string = self._read_raw_string(quote)
+        return self._make_token(TokenType.RAW_STRING, string)
+
+    def _read_raw_string(self, quote: str) -> str:
+        result = [self._advance()]
+        while self._peek() and self._peek() != quote:
+            ch = self._advance()
+            if ch == '\n':
+                raise LexerError(
+                    "Unterminated raw string literal",
+                    line=self.line, col=self.col, filename=self.source.filename,
+                    hint="Raw strings cannot span multiple lines"
+                )
+            result.append(ch)
+        if not self._peek():
+            raise LexerError(
+                "Unterminated raw string literal",
+                line=self.line, col=self.col, filename=self.source.filename,
+                hint="Expected closing quote"
+            )
+        result.append(self._advance())
+        return ''.join(result)
+
+    def _scan_template(self) -> Token:
+        tokens = []
+        self._save_start()
+        self._advance()
+
+        while True:
+            text = []
+            while self._peek() and self._peek() not in ('{', '`'):
+                ch = self._advance()
+                if ch == '\\':
+                    text.append(ch)
+                    if self._peek():
+                        text.append(self._advance())
+                else:
+                    text.append(ch)
+
+            text_str = ''.join(text)
+
+            if self._peek() == '`':
+                self._advance()
+                tokens.append(self._make_token(TokenType.TEMPLATE_END, text_str))
+                break
+
+            if self._peek() == '{':
+                self._advance()
+                if not tokens:
+                    tokens.append(self._make_token(TokenType.TEMPLATE_START, text_str))
+                else:
+                    tokens.append(self._make_token(TokenType.TEMPLATE_MID, text_str))
+
+                while self._peek() and self._peek() != '}':
+                    tok = self._scan_token()
+                    if tok is not None:
+                        tokens.append(tok)
+
+                if self._peek() == '}':
+                    self._advance()
+                self._save_start()
+                continue
+
+            if not self._peek():
+                tokens.append(self._make_token(TokenType.TEMPLATE_END, text_str))
+                break
+
+        self._template_queue = tokens[1:]
+        return tokens[0]
 
     def _scan_number(self) -> Token:
         num = self._read_number()
@@ -409,6 +517,7 @@ class Lexer:
         self.current_char = self._peek(0) if self.content else None
         self.tokens = []
         self.errors = []
+        self._template_queue = []
     
     @property
     def is_at_end(self) -> bool:
