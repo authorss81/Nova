@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="nova-lang",
-    version="0.0.0.4",
+    version="0.0.0.5",
     author="Nova Language Team",
     author_email="nova@example.com",
     description="A world-class, web-development focused programming language with built-in AI capabilities.",

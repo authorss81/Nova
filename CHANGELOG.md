@@ -4,6 +4,15 @@ A world-class, web-development focused programming language with built-in AI cap
 
 ## Version
 
+**v0.0.0.5** — Tokenizer: Literals
+
+- `true`/`false`/`null` now tokenize as `TRUE`/`FALSE`/`NULL` (not `KEYWORD`)
+- Added `LITERAL_KEYWORDS` dict mapping `{"true": TRUE, "false": FALSE, "null": NULL}`
+- Removed `true`, `false`, `null` from `KEYWORDS` set (now 50 keywords)
+- `is_keyword("true")` / `is_keyword("false")` / `is_keyword("null")` return `False`
+- Added `TestLexerLiterals` test class (10 tests)
+- 220 unit tests — all passing
+
 **v0.0.0.4** — Tokenizer: Keywords & Identifiers
 
 - Trimmed `KEYWORDS` set to exact roadmap reserved keywords (53 keywords)

@@ -97,12 +97,19 @@ class TokenType(Enum):
 
 KEYWORDS = {
     "let", "const", "fn", "return", "if", "else", "for", "while",
-    "in", "break", "continue", "true", "false", "null", "import",
+    "in", "break", "continue", "import",
     "export", "from", "class", "extends", "new", "this", "super",
     "static", "async", "await", "try", "catch", "finally", "throw",
     "match", "case", "type", "interface", "enum", "as", "is", "of",
     "yield", "page", "component", "style", "route", "ai", "not",
     "and", "or", "where", "on", "send", "find", "show", "give", "with",
+}
+
+
+LITERAL_KEYWORDS = {
+    "true": TokenType.TRUE,
+    "false": TokenType.FALSE,
+    "null": TokenType.NULL,
 }
 
 

@@ -1,7 +1,7 @@
 import pytest
 from nova.lexer.lexer import Lexer
 from nova.lexer.source import SourceFile
-from nova.lexer.tokens import Token, TokenType, KEYWORDS
+from nova.lexer.tokens import Token, TokenType, KEYWORDS, LITERAL_KEYWORDS
 from nova.errors import LexerError
 
 
@@ -879,9 +879,9 @@ class TestLexerEdgeCases:
         assert "else" in KEYWORDS
         assert "for" in KEYWORDS
         assert "while" in KEYWORDS
-        assert "true" in KEYWORDS
-        assert "false" in KEYWORDS
-        assert "null" in KEYWORDS
+        assert "true" not in KEYWORDS
+        assert "false" not in KEYWORDS
+        assert "null" not in KEYWORDS
 
 
 class TestLexerRepr:
@@ -947,7 +947,7 @@ class TestKeywordCompleteness:
     def test_all_roadmap_keywords(self):
         roadmap_keywords = {
             "let", "const", "fn", "return", "if", "else", "for", "while",
-            "in", "break", "continue", "true", "false", "null", "import",
+            "in", "break", "continue", "import",
             "export", "from", "class", "extends", "new", "this", "super",
             "static", "async", "await", "try", "catch", "finally", "throw",
             "match", "case", "type", "interface", "enum", "as", "is", "of",
@@ -979,23 +979,24 @@ class TestKeywordCompleteness:
         assert is_keyword("fn") is True
         assert is_keyword("not_a_keyword") is False
         assert is_keyword("") is False
-        assert is_keyword("Let") is False  # case sensitive
+        assert is_keyword("Let") is False
+        assert is_keyword("true") is False
+        assert is_keyword("false") is False
+        assert is_keyword("null") is False
 
     def test_keyword_in_expression(self):
         code = "let x = if + return - true * false / null"
         toks = tokenize(code)
-        types_list = [t.type for t in toks if t.type != TokenType.EOF]
         for t in toks:
             if t.type == TokenType.KEYWORD:
                 assert t.value in KEYWORDS
+            if t.value in LITERAL_KEYWORDS:
+                assert t.type in (TokenType.TRUE, TokenType.FALSE, TokenType.NULL)
         keyword_tokens = [t for t in toks if t.type == TokenType.KEYWORD]
-        assert len(keyword_tokens) == 6
+        assert len(keyword_tokens) == 3
         assert keyword_tokens[0].value == "let"
         assert keyword_tokens[1].value == "if"
         assert keyword_tokens[2].value == "return"
-        assert keyword_tokens[3].value == "true"
-        assert keyword_tokens[4].value == "false"
-        assert keyword_tokens[5].value == "null"
 
 
 class TestUnicodeIdentifiers:
@@ -1078,3 +1079,72 @@ class TestUnderscoreIdentifier:
             TokenType.KEYWORD, TokenType.IDENTIFIER, TokenType.EQ, TokenType.KEYWORD
         ]
         assert toks[1].value == "_"
+
+
+class TestLexerLiterals:
+    def test_true_literal(self):
+        toks = tokenize("true")
+        assert types(toks) == [TokenType.TRUE]
+        assert toks[0].value == "true"
+
+    def test_false_literal(self):
+        toks = tokenize("false")
+        assert types(toks) == [TokenType.FALSE]
+        assert toks[0].value == "false"
+
+    def test_null_literal(self):
+        toks = tokenize("null")
+        assert types(toks) == [TokenType.NULL]
+        assert toks[0].value == "null"
+
+    def test_true_is_not_keyword(self):
+        toks = tokenize("true")
+        assert toks[0].type != TokenType.KEYWORD
+        assert toks[0].type == TokenType.TRUE
+
+    def test_false_is_not_keyword(self):
+        toks = tokenize("false")
+        assert toks[0].type != TokenType.KEYWORD
+
+    def test_null_is_not_keyword(self):
+        toks = tokenize("null")
+        assert toks[0].type != TokenType.KEYWORD
+
+    def test_true_false_null_in_literal_keywords(self):
+        assert "true" in LITERAL_KEYWORDS
+        assert "false" in LITERAL_KEYWORDS
+        assert "null" in LITERAL_KEYWORDS
+        assert LITERAL_KEYWORDS["true"] == TokenType.TRUE
+        assert LITERAL_KEYWORDS["false"] == TokenType.FALSE
+        assert LITERAL_KEYWORDS["null"] == TokenType.NULL
+
+    def test_true_in_expression(self):
+        toks = tokenize("let flag = true")
+        types_and_values = [(t.type, t.value) for t in toks if t.type not in (TokenType.EOF,)]
+        expected = [
+            (TokenType.KEYWORD, "let"),
+            (TokenType.IDENTIFIER, "flag"),
+            (TokenType.EQ, "="),
+            (TokenType.TRUE, "true"),
+        ]
+        assert types_and_values == expected
+
+    def test_bool_with_operators(self):
+        toks = tokenize("true and false or null")
+        types_and_values = [(t.type, t.value) for t in toks if t.type not in (TokenType.EOF,)]
+        expected = [
+            (TokenType.TRUE, "true"),
+            (TokenType.KEYWORD, "and"),
+            (TokenType.FALSE, "false"),
+            (TokenType.KEYWORD, "or"),
+            (TokenType.NULL, "null"),
+        ]
+        assert types_and_values == expected
+
+    def test_literal_token_positions(self):
+        lexer = make_lexer("  true")
+        toks = lexer.tokenize()
+        tok = toks[0]
+        assert tok.line == 1
+        assert tok.col == 3
+        assert tok.type == TokenType.TRUE

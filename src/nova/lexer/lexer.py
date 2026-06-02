@@ -6,7 +6,7 @@ Character-by-character scanner with lookahead for tokenizing Nova source code.
 
 from typing import Optional
 from nova.lexer.source import SourceFile
-from nova.lexer.tokens import Token, TokenType, is_keyword
+from nova.lexer.tokens import Token, TokenType, is_keyword, LITERAL_KEYWORDS
 from nova.errors import LexerError
 
 
@@ -210,7 +210,9 @@ class Lexer:
     def _scan_identifier_or_keyword(self) -> Token:
         identifier = self._read_identifier()
         type = TokenType.IDENTIFIER
-        if is_keyword(identifier):
+        if identifier in LITERAL_KEYWORDS:
+            type = LITERAL_KEYWORDS[identifier]
+        elif is_keyword(identifier):
             type = TokenType.KEYWORD
         return self._make_token(type, identifier)
     
