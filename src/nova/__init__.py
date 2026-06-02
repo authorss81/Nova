@@ -1,4 +1,4 @@
-__version__ = "0.0.0.3"
+__version__ = "0.0.0.4"
 __author__ = "Nova Language Team"
 __license__ = "MIT"
 

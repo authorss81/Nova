@@ -4,6 +4,17 @@ A world-class, web-development focused programming language with built-in AI cap
 
 ## Version
 
+**v0.0.0.4** — Tokenizer: Keywords & Identifiers
+
+- Trimmed `KEYWORDS` set to exact roadmap reserved keywords (53 keywords)
+- Added Unicode identifier support (accented, Cyrillic, CJK, mixed scripts)
+- Confirmed `_` (underscore) as valid identifier both standalone and within
+- Verified keywords are case-sensitive (`let` vs `Let`)
+- Added `KeywordCompleteness` test class — all 53 keywords tokenize as KEYWORD
+- Added `UnicodeIdentifiers` test class — accented, Cyrillic, Chinese, Japanese, mixed
+- Added `UnderscoreIdentifier` test class — standalone `_`, `__init__`, in expressions
+- 210 unit tests — all passing
+
 **v0.0.0.3** — Tokenizer Core
 
 - `Lexer` class with character-by-character scanning

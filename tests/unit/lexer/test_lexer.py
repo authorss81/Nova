@@ -941,3 +941,140 @@ class TestLexerTokenProperties:
         t1 = Token(TokenType.INTEGER, "42", 1, 1, 2)
         t2 = Token(TokenType.INTEGER, "42", 2, 5, 2)
         assert hash(t1) == hash(t2)
+
+
+class TestKeywordCompleteness:
+    def test_all_roadmap_keywords(self):
+        roadmap_keywords = {
+            "let", "const", "fn", "return", "if", "else", "for", "while",
+            "in", "break", "continue", "true", "false", "null", "import",
+            "export", "from", "class", "extends", "new", "this", "super",
+            "static", "async", "await", "try", "catch", "finally", "throw",
+            "match", "case", "type", "interface", "enum", "as", "is", "of",
+            "yield", "page", "component", "style", "route", "ai", "not",
+            "and", "or", "where", "on", "send", "find", "show", "give", "with",
+        }
+        assert KEYWORDS == roadmap_keywords
+
+    def test_each_keyword_tokenizes_as_keyword(self):
+        for kw in KEYWORDS:
+            toks = tokenize(kw)
+            assert toks[0].type == TokenType.KEYWORD, f"{kw!r} should be KEYWORD, got {toks[0].type}"
+            assert toks[0].value == kw
+
+    def test_keyword_case_sensitive_all(self):
+        for kw in KEYWORDS:
+            upper = kw.upper()
+            if upper != kw:
+                toks = tokenize(upper)
+                assert toks[0].type == TokenType.IDENTIFIER, f"{upper!r} should be IDENTIFIER, got {toks[0].type}"
+            title = kw.title()
+            if title != kw and title.isidentifier():
+                toks = tokenize(title)
+                assert toks[0].type == TokenType.IDENTIFIER, f"{title!r} should be IDENTIFIER, got {toks[0].type}"
+
+    def test_is_keyword_function(self):
+        from nova.lexer.tokens import is_keyword
+        assert is_keyword("let") is True
+        assert is_keyword("fn") is True
+        assert is_keyword("not_a_keyword") is False
+        assert is_keyword("") is False
+        assert is_keyword("Let") is False  # case sensitive
+
+    def test_keyword_in_expression(self):
+        code = "let x = if + return - true * false / null"
+        toks = tokenize(code)
+        types_list = [t.type for t in toks if t.type != TokenType.EOF]
+        for t in toks:
+            if t.type == TokenType.KEYWORD:
+                assert t.value in KEYWORDS
+        keyword_tokens = [t for t in toks if t.type == TokenType.KEYWORD]
+        assert len(keyword_tokens) == 6
+        assert keyword_tokens[0].value == "let"
+        assert keyword_tokens[1].value == "if"
+        assert keyword_tokens[2].value == "return"
+        assert keyword_tokens[3].value == "true"
+        assert keyword_tokens[4].value == "false"
+        assert keyword_tokens[5].value == "null"
+
+
+class TestUnicodeIdentifiers:
+    def test_accented_identifier(self):
+        toks = tokenize("café")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "café"
+
+    def test_unicode_identifier_with_underscore(self):
+        toks = tokenize("über_ cool")
+        assert types(toks) == [TokenType.IDENTIFIER, TokenType.IDENTIFIER]
+        assert toks[0].value == "über_"
+        assert toks[1].value == "cool"
+
+    def test_cyrillic_identifier(self):
+        toks = tokenize("привет")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "привет"
+
+    def test_chinese_identifier(self):
+        toks = tokenize("变量")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "变量"
+
+    def test_japanese_identifier(self):
+        toks = tokenize("変数名")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "変数名"
+
+    def test_unicode_with_numbers(self):
+        toks = tokenize("πr²")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "πr²"
+
+    def test_mixed_unicode_ascii_identifier(self):
+        toks = tokenize("get_naïve_value")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "get_naïve_value"
+
+    def test_unicode_identifier_dollar_prefix(self):
+        toks = tokenize("$über")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "$über"
+
+    def test_unicode_identifier_positions(self):
+        lexer = make_lexer("  ñoño")
+        toks = lexer.tokenize()
+        tok = toks[0]
+        assert tok.line == 1
+        assert tok.col == 3
+        assert tok.value == "ñoño"
+
+
+class TestUnderscoreIdentifier:
+    def test_standalone_underscore(self):
+        toks = tokenize("_")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "_"
+
+    def test_underscore_in_expression(self):
+        toks = tokenize("_ = 42")
+        assert [t.type for t in toks if t.type != TokenType.EOF] == [
+            TokenType.IDENTIFIER, TokenType.EQ, TokenType.INTEGER
+        ]
+        assert toks[0].value == "_"
+
+    def test_underscore_with_alphanum(self):
+        toks = tokenize("_my_var_1")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "_my_var_1"
+
+    def test_double_underscore(self):
+        toks = tokenize("__init__")
+        assert types(toks) == [TokenType.IDENTIFIER]
+        assert toks[0].value == "__init__"
+
+    def test_underscore_between_keywords(self):
+        toks = tokenize("let _ = fn")
+        assert [t.type for t in toks if t.type != TokenType.EOF] == [
+            TokenType.KEYWORD, TokenType.IDENTIFIER, TokenType.EQ, TokenType.KEYWORD
+        ]
+        assert toks[1].value == "_"

@@ -103,13 +103,6 @@ KEYWORDS = {
     "match", "case", "type", "interface", "enum", "as", "is", "of",
     "yield", "page", "component", "style", "route", "ai", "not",
     "and", "or", "where", "on", "send", "find", "show", "give", "with",
-    "loop", "pub", "priv", "mut", "ref", "static", "abstract",
-    "virtual", "override", "sealed", "partial", "async", "await",
-    "yield", "match", "case", "if", "else", "elif", "unless", "when",
-    "and", "or", "not", "in", "as", "is", "of", "for", "while", "loop",
-    "switch", "default", "defer", "scope", "using", "try", "catch",
-    "finally", "throw", "raises", "assert", "debugger", "todo", "fixme",
-    "XXX", "TBD", "note", "hack"
 }
 
 
